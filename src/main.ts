@@ -24,12 +24,12 @@ async function bootstrap() {
 
   const defaultPort = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
   try {
-    await app.listen(defaultPort);
+    await app.listen(defaultPort, '0.0.0.0');
     console.log(`Aplicación escuchando en http://localhost:${defaultPort}/swagger`);
   } catch (err: any) {
     if (err && (err.code === 'EACCES' || err.code === 'EADDRINUSE')) {
       const altPort = 3001;
-      await app.listen(altPort);
+      await app.listen(altPort, '0.0.0.0');
       console.log(`Puerto ${defaultPort} restringido por el SO (${err.code}). Escuchando en http://localhost:${altPort}/swagger`);
     } else {
       throw err;
