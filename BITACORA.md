@@ -1,74 +1,87 @@
-# Bitácora de Práctica - Semana 2: CRUD Completo REST en NestJS
+# Bitácora de Práctica - Semana 2 (Extensión): Persistencia en Base de Datos Relacional con PostgreSQL y TypeORM
 
-## 1. Contrato de la API de Productos (`/api/v1/productos`)
+## 1. Arquitectura de Persistencia
 
-| Operación | Verbo HTTP | URI | Código de Éxito | Códigos de Error |
-| :--- | :--- | :--- | :--- | :--- |
-| Listar todos | GET | `/api/v1/productos` | 200 OK | 500 Internal Server Error |
-| Obtener detalle | GET | `/api/v1/productos/{id}` | 200 OK (con `_links` HATEOAS) | 400 Bad Request, 404 Not Found |
-| Crear producto | POST | `/api/v1/productos` | 201 Created (+ header `Location`) | 400 Bad Request |
-| Reemplazar completo | PUT | `/api/v1/productos/{id}` | 204 No Content | 400 Bad Request, 404 Not Found |
-| Actualizar parcial | PATCH | `/api/v1/productos/{id}` | 200 OK | 400 Bad Request, 404 Not Found |
-| Eliminar producto | DELETE | `/api/v1/productos/{id}` | 204 No Content | 404 Not Found |
+Se sustituyó el almacenamiento volátil en memoria por una **base de datos relacional PostgreSQL 16**, orquestada mediante un contenedor Docker (`pg-productos`) e integrada con **TypeORM** utilizando el patrón **Repository**.
+
+- **Motor de Base de Datos:** PostgreSQL 16 (puerto 5432)
+- **ORM:** TypeORM con `@nestjs/typeorm`
+- **Configuración:** `@nestjs/config` cargando variables desde `.env`
+- **Entidad:** `Producto` mapeada a la tabla `productos` con transformador numérico para `precio`.
 
 ---
 
-## 2. Justificación Técnica de Códigos de Estado HTTP
+## 2. El Paso Clave: Análisis de Persistencia Real (Paso 8)
 
-### A. ¿Por qué `201 Created` y encabezado `Location` en `POST`?
-El método `POST` crea un nuevo recurso subordinado en la colección. La especificación RFC 9110 indica que cuando una solicitud resulta en la creación de un recurso identifiable, el servidor debe responder `201 Created` e incluir el encabezado `Location` indicando la URI canónica del nuevo recurso (`/api/v1/productos/{id}`). Esto permite al cliente acceder inmediatamente al recurso creado sin necesidad de adivinar su URI.
+### ¿Por qué los datos sobreviven al reinicio del servidor de Node.js?
+En la arquitectura inicial en memoria, los datos residían exclusivamente en el espacio de memoria RAM asignado al proceso de **Node.js**. Por tanto, cualquier reinicio, caída o despliegue destruía el proceso y borraba todo el estado.
 
-### B. ¿Por qué `204 No Content` en `PUT` y `DELETE`?
-- **PUT:** Al reemplazar completamente la representación del recurso, si la acción se completa satisfactoriamente y el cliente ya posee el estado que acaba de enviar, no es necesario enviar el cuerpo de vuelta, ahorrando ancho de banda.
-- **DELETE:** Al eliminar exitosamente un recurso, el recurso ya no existe. Devolver un cuerpo sería contradictorio o redundante; `204 No Content` confirma la eliminación sin contenido adicional.
-
-### C. ¿Por qué el segundo `DELETE` sobre el mismo ID responde `404 Not Found` en lugar de `500`?
-El verbo `DELETE` es idempotente a nivel de estado final del servidor (el recurso queda eliminado tanto tras una como tras múltiples llamadas). Sin embargo, a nivel de código de respuesta HTTP, cuando el recurso ya no existe en el sistema, la excepción `NotFoundException` de NestJS genera un `404 Not Found`, informando al cliente de manera precisa que el recurso solicitado no fue encontrado, evitando en todo momento generar un error no controlado de servidor `500`.
-
-### D. ¿Por qué `400 Bad Request` en validaciones de DTO?
-Gracias al `ValidationPipe` global con `whitelist: true` y `forbidNonWhitelisted: true`, cualquier carga útil que no cumpla con los decoradores de `class-validator` (como `nombre` vacío o `precio` negativo) es interceptada antes de llegar al controlador, devolviendo un `400 Bad Request` estructurado con la lista exacta de restricciones incumplidas.
+Al integrar **PostgreSQL**:
+1. El proceso de la aplicación NestJS actúa únicamente como una capa sin estado (*stateless*).
+2. Cada operación (`crear`, `reemplazar`, `actualizarPrecio`, `eliminar`) se traduce a sentencias SQL (`INSERT`, `UPDATE`, `DELETE`) ejecutadas sobre el motor de Postgres.
+3. El motor de base de datos escribe los registros en un almacenamiento físico no volátil con garantías **ACID** (Write-Ahead Logging / WAL y archivos en disco).
+4. Al detener y reiniciar el servidor de Node (`Ctrl+C` y posterior `npm run start:dev`), la aplicación vuelve a iniciar, se reconecta al pool de PostgreSQL y recupera inmediatamente todas las filas existentes intactas.
 
 ---
 
-## 3. Resultados de la Matriz de Pruebas Sistemáticas (Paso 7 y 8)
+## 3. Reto Implementado: Búsqueda con `ILike` (Paso 9)
 
-| # | Prueba | Verbo | Endpoint | Esperado | Obtenido | Resultado |
-| :---: | :--- | :---: | :--- | :---: | :---: | :---: |
-| 1 | POST con nombre vacío | POST | `/api/v1/productos` | 400 | 400 | ✅ PASS |
-| 2 | POST válido (+ header Location) | POST | `/api/v1/productos` | 201 | 201 | ✅ PASS |
-| 3 | GET con id inexistente | GET | `/api/v1/productos/999` | 404 | 404 | ✅ PASS |
-| 4 | PUT con precio negativo | PUT | `/api/v1/productos/1` | 400 | 400 | ✅ PASS |
-| 5 | PUT válido (reemplazo completo) | PUT | `/api/v1/productos/1` | 204 | 204 | ✅ PASS |
-| 6 | PATCH de precio válido | PATCH | `/api/v1/productos/1` | 200 | 200 | ✅ PASS |
-| 7 | DELETE existente | DELETE | `/api/v1/productos/2` | 204 | 204 | ✅ PASS |
-| 8 | DELETE repetido | DELETE | `/api/v1/productos/2` | 404 | 404 | ✅ PASS |
-| 9 | GET con HATEOAS (`_links`) | GET | `/api/v1/productos/1` | 200 | 200 | ✅ PASS |
-| 10 | Swagger UI interactivo | GET | `/swagger/` | 200 | 200 | ✅ PASS |
-
----
-
-## 4. Reto HATEOAS Implementado (Paso 8)
-El endpoint `GET /api/v1/productos/:id` incluye enlaces de hipermedios para guiar al cliente sobre las acciones disponibles sobre el recurso:
-```json
-{
-  "id": 1,
-  "nombre": "Teclado mecánico RGB",
-  "precio": 60,
-  "_links": {
-    "self": { "href": "/api/v1/productos/1" },
-    "actualizar": { "href": "/api/v1/productos/1", "method": "PUT" },
-    "eliminar": { "href": "/api/v1/productos/1", "method": "DELETE" }
+Se implementó el filtrado no sensible a mayúsculas utilizando el operador nativo de PostgreSQL `ILike`:
+```typescript
+findAll(nombre?: string): Promise<Producto[]> {
+  if (!nombre) {
+    return this.productosRepository.find();
   }
+  return this.productosRepository.find({
+    where: { nombre: ILike(`%${nombre}%`) },
+  });
 }
 ```
+Petición: `GET /api/v1/productos?nombre=teclado` $ightarrow$ filtra coincidencias sin distinguir entre 'Teclado', 'TECLADO' o 'teclado'.
 
 ---
 
-## 5. Declaración de Uso de IA
+## 4. Matriz de Verificación de Endpoints y Tests E2E
+
+- **Test Suite E2E (`npm run test:e2e`):** 4/4 pruebas ejecutadas directamente contra la base de datos PostgreSQL:
+  - `GET /` $ightarrow$ 200 OK
+  - `GET /api/v1/productos` $ightarrow$ 200 OK (arreglo de productos)
+  - `POST /api/v1/productos` $ightarrow$ 201 Created (+ header `Location`)
+  - `GET /api/v1/productos/:id` $ightarrow$ 200 OK con hipermedios HATEOAS (`_links`)
+- **Compilación de Producción (`npm run build`):** 0 errores.
+- **Unit Tests (`npm test`):** 1/1 aprobado.
+
+---
+
+## 5. Guía de Despliegue en Render y CI en GitHub Actions (Pasos 11 y 12)
+
+### A. Subir a GitHub
+1. Crear repositorio en GitHub (ej. `https://github.com/<usuario>/<repo>.git`).
+2. Vincular y enviar:
+   ```bash
+   git remote add origin https://github.com/<usuario>/<repo>.git
+   git branch -M main
+   git push -u origin main
+   ```
+3. El archivo `.github/workflows/tests.yml` ya incluido ejecutará automáticamente un contenedor de PostgreSQL y correrá las pruebas en cada `push`.
+
+### B. Despliegue en Render
+1. En [Render.com](https://render.com), crear una nueva base de datos **PostgreSQL** gratuita.
+2. Copiar la **Internal Database URL**.
+3. Crear un **Web Service** conectado al repositorio:
+   - **Build Command:** `npm install --include=dev && npm run build`
+   - **Start Command:** `npm run start:prod`
+   - **Environment Variables:**
+     - `DATABASE_URL`: Pegar la URL interna copiada de Postgres.
+     - `NODE_ENV`: `production`
+
+---
+
+## 6. Declaración de Uso de IA
 - **Herramienta(s):** Antigravity / Gemini 3.8
 - **Nivel de uso:** Nivel 2–3 (Asistente de desarrollo e integración guiada paso a paso)
-- **Qué se le pidió:** Generar la arquitectura completa según la guía de la Semana 2: módulo, DTOs de validación con class-validator, controlador REST con ValidationPipe global, Swagger, códigos de estado HTTP precisos, HATEOAS y matriz de pruebas automatizada.
+- **Qué se le pidió:** Configuración de la persistencia relacional completa: imagen y contenedor Docker de PostgreSQL 16, módulo e integración de TypeORM con variables de entorno, entidad relacional con transformer de precios, Repository con búsquedas insensibles a mayúsculas (`ILike`), suite de pruebas E2E y workflow de CI con GitHub Actions.
 - **Qué se modificó/verificó manualmente:** 
-  1. Resolución de compatibilidad de tipos TypeScript con Express (`import type { Response } from 'express'`).
-  2. Implementación de fallback resiliente de puertos (`3000 -> 3001`) al detectar exclusión por parte del sistema operativo en el puerto 3000.
-  3. Ejecución y validación del 100% de la matriz de pruebas contra el servidor en vivo.
+  1. Resolución de compatibilidad entre `@nestjs/config`, `@nestjs/typeorm` y Jest para ejecutar tests en entornos CommonJS.
+  2. Comprobación directa vía `psql` dentro del contenedor `pg-productos` de la creación de la tabla y la persistencia de los registros.
+  3. Verificación de exclusión de `.env` en Git y disponibilidad de `.env.example`.
