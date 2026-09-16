@@ -37,17 +37,22 @@ findAll(nombre?: string): Promise<Producto[]> {
   });
 }
 ```
-Petición: `GET /api/v1/productos?nombre=teclado` $ightarrow$ filtra coincidencias sin distinguir entre 'Teclado', 'TECLADO' o 'teclado'.
+Petición: `GET /api/v1/productos?nombre=teclado` $
+ightarrow$ filtra coincidencias sin distinguir entre 'Teclado', 'TECLADO' o 'teclado'.
 
 ---
 
 ## 4. Matriz de Verificación de Endpoints y Tests E2E
 
 - **Test Suite E2E (`npm run test:e2e`):** 4/4 pruebas ejecutadas directamente contra la base de datos PostgreSQL:
-  - `GET /` $ightarrow$ 200 OK
-  - `GET /api/v1/productos` $ightarrow$ 200 OK (arreglo de productos)
-  - `POST /api/v1/productos` $ightarrow$ 201 Created (+ header `Location`)
-  - `GET /api/v1/productos/:id` $ightarrow$ 200 OK con hipermedios HATEOAS (`_links`)
+  - `GET /` $
+ightarrow$ 200 OK
+  - `GET /api/v1/productos` $
+ightarrow$ 200 OK (arreglo de productos)
+  - `POST /api/v1/productos` $
+ightarrow$ 201 Created (+ header `Location`)
+  - `GET /api/v1/productos/:id` $
+ightarrow$ 200 OK con hipermedios HATEOAS (`_links`)
 - **Compilación de Producción (`npm run build`):** 0 errores.
 - **Unit Tests (`npm test`):** 1/1 aprobado.
 
