@@ -1,0 +1,140 @@
+[
+  [
+    "1. POST con nombre vacio",
+    "POST",
+    "/api/v1/productos",
+    400,
+    400,
+    true,
+    {
+      "message": [
+        "nombre should not be empty"
+      ],
+      "error": "Bad Request",
+      "statusCode": 400
+    }
+  ],
+  [
+    "2. POST valido (+ Location)",
+    "POST",
+    "/api/v1/productos",
+    201,
+    201,
+    true,
+    {
+      "body": {
+        "id": 4,
+        "nombre": "Audífonos",
+        "precio": 25
+      },
+      "location": "/api/v1/productos/4"
+    }
+  ],
+  [
+    "3. GET con id inexistente",
+    "GET",
+    "/api/v1/productos/999",
+    404,
+    404,
+    true,
+    {
+      "message": "Producto 999 no existe",
+      "error": "Not Found",
+      "statusCode": 404
+    }
+  ],
+  [
+    "4. PUT con precio negativo",
+    "PUT",
+    "/api/v1/productos/1",
+    400,
+    400,
+    true,
+    {
+      "message": [
+        "precio must be a positive number"
+      ],
+      "error": "Bad Request",
+      "statusCode": 400
+    }
+  ],
+  [
+    "5. PUT valido",
+    "PUT",
+    "/api/v1/productos/1",
+    204,
+    204,
+    true,
+    null
+  ],
+  [
+    "6. PATCH de precio valido",
+    "PATCH",
+    "/api/v1/productos/1",
+    200,
+    200,
+    true,
+    {
+      "id": 1,
+      "nombre": "Teclado mecánico RGB",
+      "precio": 60
+    }
+  ],
+  [
+    "7. DELETE existente",
+    "DELETE",
+    "/api/v1/productos/2",
+    204,
+    204,
+    true,
+    null
+  ],
+  [
+    "8. DELETE repetido",
+    "DELETE",
+    "/api/v1/productos/2",
+    404,
+    404,
+    true,
+    {
+      "message": "Producto 2 no existe",
+      "error": "Not Found",
+      "statusCode": 404
+    }
+  ],
+  [
+    "9. GET con HATEOAS (_links)",
+    "GET",
+    "/api/v1/productos/1",
+    200,
+    200,
+    true,
+    {
+      "id": 1,
+      "nombre": "Teclado mecánico RGB",
+      "precio": 60,
+      "_links": {
+        "self": {
+          "href": "/api/v1/productos/1"
+        },
+        "actualizar": {
+          "href": "/api/v1/productos/1",
+          "method": "PUT"
+        },
+        "eliminar": {
+          "href": "/api/v1/productos/1",
+          "method": "DELETE"
+        }
+      }
+    }
+  ],
+  [
+    "10. Swagger UI disponible",
+    "GET",
+    "/swagger/",
+    200,
+    200,
+    true,
+    "Swagger UI cargado correctamente"
+  ]
+]
