@@ -1,7 +1,6 @@
 databases:
   - name: productos-db
     databaseName: productos_db
-    user: postgres
     plan: free
 
 services:
